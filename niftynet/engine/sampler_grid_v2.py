@@ -52,6 +52,9 @@ class GridSampler(ImageWindowDataset):
                                (self.border_size[-1],)
         self.border_size = self.border_size[:N_SPATIAL]
         self.no_more_samples = False
+        self.end_val = False
+        self.no_samples_count = 0
+        self.output_dict = {}
         tf.logging.info('initialised window instance')
         tf.logging.info("initialised grid sampler %s", self.window.shapes)
 
@@ -59,12 +62,43 @@ class GridSampler(ImageWindowDataset):
         while True:
             image_id, data, _ = self.reader(idx=None, shuffle=False)
             if not data:
+                self.no_samples_count += 1
+                tf.logging.info('no_samples_count: {}'.format(self.no_samples_count))
                 if self.do_whole_volume_validation:
-                    self.reader.reset()
-                    self.no_more_samples = True
-                    continue
+                    if self.no_samples_count <= 7:
+                        print('continue ing from samples count for loop')
+                        continue
+                    else:
+                        self.end_val = True
+                        output_dict = {}
+                        for name in list(self.output_dict):
+                            output_dict[name] = np.ones_like(self.output_dict[name]) * -1
+                        print('yielding output_dict')
+                        yield output_dict
+                        print('Entered reader reset condition')
+                        self.reader.reset()
+                        self.no_more_samples = True
+                        self.no_samples_count = 0
+                        self.end_val = False
+                        continue
                 else:
-                    break
+                    print('NOT doing whole volume validation!?!?!?')
+                    if self.no_samples_count <= 7:
+                        continue
+                    else:
+                        # this is needed because otherwise reading beyond the last element
+                        # raises an out-of-range error, and the last grid sample
+                        # will not be processed properly.
+                        try:
+                            output_dict = {}
+                            for name in list(self.output_dict):
+                                output_dict[name] = np.ones_like(self.output_dict[name]) * -1
+                            yield output_dict
+                        except (NameError, KeyError):
+                            tf.logging.fatal("No feasible samples from %s", self)
+                            raise
+                        break
+
             image_shapes = {name: data[name].shape
                             for name in self.window.names}
             static_window_shapes = self.window.match_image_shapes(image_shapes)
@@ -118,6 +152,7 @@ class GridSampler(ImageWindowDataset):
                     image_key = name
                     output_dict[coord_key] = coordinates[name][idx:idx+1, ...]
                     output_dict[image_key] = image_window[np.newaxis, ...]
+                self.output_dict = output_dict
                 yield output_dict
 
 

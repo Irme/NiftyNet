@@ -32,8 +32,9 @@ class EvaluationHandler(object):
         :param _msg: iteration message
         :return:
         """
+        # pass
         iter_msg = _msg['iter_msg']
-
+        
         if _sender.is_whole_volume_validating and iter_msg.is_validation:
             self.internal_validation_flag = True
         else:

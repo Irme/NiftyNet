@@ -12,6 +12,7 @@ from niftynet.engine.sampler_uniform_v2 import UniformSampler
 from niftynet.engine.sampler_weighted_v2 import WeightedSampler
 from niftynet.engine.sampler_balanced_v2 import BalancedSampler
 from niftynet.engine.windows_aggregator_grid import GridSamplesAggregator
+from niftynet.engine.windows_aggregator_WVV_grid import WVVGridSamplesAggregator
 from niftynet.engine.windows_aggregator_resize import ResizeSamplesAggregator
 from niftynet.io.image_reader import ImageReader
 from niftynet.layer.binary_masking import BinaryMaskingLayer
@@ -215,7 +216,7 @@ class SegmentationApplication(BaseApplication):
                     spatial_window_size=self.action_param.spatial_window_size,
                     window_border=self.action_param.border,
                     do_whole_volume_validation=True,
-                    smaller_final_batch_mode=self.net_param.smaller_final_batch_mode,
+                    smaller_final_batch_mode='pad',
                     queue_length=self.net_param.queue_length
                 )
             ]]
@@ -308,6 +309,16 @@ class SegmentationApplication(BaseApplication):
             windows_per_image=self.action_param.sample_per_volume,
             queue_length=self.net_param.queue_length) for reader in
             self.readers]]
+
+    def initialise_wvv_grid_aggregator(self):
+        self.output_decoder = WVVGridSamplesAggregator(
+            image_reader=self.readers[-1],
+            sampler=self.sampler[0][1],
+            output_path=self.action_param.save_seg_dir,
+            window_border=self.action_param.border,
+            interp_order=self.action_param.output_interp_order,
+            postfix='_wvv_out',
+            fill_constant=self.action_param.fill_constant)
 
     def initialise_grid_aggregator(self):
         self.output_decoder = GridSamplesAggregator(
@@ -468,7 +479,7 @@ class SegmentationApplication(BaseApplication):
                 var=data_dict['image_location'], name='location',
                 average_over_devices=False, collection=NETWORK_OUTPUT)
             if self.action_param.do_whole_volume_validation:
-                self.initialise_aggregator()
+                self.initialise_wvv_grid_aggregator()
 
             # outputs_collector.add_to_collection(
             #    var=image*180.0, name='image',
