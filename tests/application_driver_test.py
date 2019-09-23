@@ -13,14 +13,30 @@ from niftynet.engine.handler_model import ModelRestorer
 from niftynet.io.misc_io import set_logger
 from niftynet.utilities.util_common import ParserNamespace
 from niftynet.engine.signal import SESS_FINISHED, SESS_STARTED
+from tests.niftynet_testcase import NiftyNetTestCase
 
-SYSTEM_PARAM = {
+# def _run_test_application():
+#    test_driver = get_initialised_driver()
+#    test_driver.run_application()
+#    return
+
+
+def get_initialised_driver(starting_iter=0,
+                           model_dir_rand=True,
+                           vars_to_restore='',
+                           application='tests.toy_application.ToyApplication'):
+    if model_dir_rand:
+        model_dir = os.path.join('.', 'testing_data', 'tmp', str(uuid.uuid4()))
+        os.makedirs(model_dir)
+    else:
+        model_dir = os.path.join('.', 'testing_data')
+    system_param = {
         'SYSTEM': ParserNamespace(
             action='train',
             num_threads=2,
             num_gpus=4,
             cuda_devices='6',
-            model_dir=None,
+            model_dir=model_dir,
             dataset_split_file=os.path.join(
                 '.', 'testing_data', 'testtoyapp.csv'),
             event_handler=[
@@ -32,7 +48,7 @@ SYSTEM_PARAM = {
             batch_size=20,
             name='tests.toy_application.TinyNet'),
         'TRAINING': ParserNamespace(
-            starting_iter=0,
+            starting_iter=starting_iter,
             max_iter=500,
             save_every_n=20,
             tensorboard_every_n=1,
@@ -41,31 +57,15 @@ SYSTEM_PARAM = {
             validation_every_n=-1,
             exclude_fraction_for_validation=0.1,
             exclude_fraction_for_inference=0.1,
-            vars_to_restore='',
+            vars_to_restore=vars_to_restore,
             patience=100,
             lr=0.01),
         'CUSTOM': ParserNamespace(
             vector_size=100,
             mean=10.0,
             stddev=2.0,
-            name='tests.toy_application.ToyApplication')
+            name=application)
     }
-
-
-def get_initialised_driver(starting_iter=0,
-                           model_dir_rand=True,
-                           vars_to_restore='',
-                           application='tests.toy_application.ToyApplication',
-                           system_param=SYSTEM_PARAM):
-    if model_dir_rand:
-        model_dir = os.path.join('.', 'testing_data', 'tmp', str(uuid.uuid4()))
-        os.makedirs(model_dir)
-    else:
-        model_dir = os.path.join('.', 'testing_data')
-    SYSTEM_PARAM['SYSTEM'].model_dir = model_dir
-    SYSTEM_PARAM['TRAINING'].starting_iter = starting_iter
-    SYSTEM_PARAM['TRAINING'].vars_to_restore = vars_to_restore
-    SYSTEM_PARAM['CUSTOM'].name = application
     app_driver = ApplicationDriver()
     app_driver.initialise_application(system_param, {})
     # set parameters without __init__
@@ -75,7 +75,7 @@ def get_initialised_driver(starting_iter=0,
     return app_driver
 
 
-class ApplicationDriverTest(tf.test.TestCase):
+class ApplicationDriverTest(NiftyNetTestCase):
     def test_wrong_init(self):
         app_driver = ApplicationDriver()
         with self.assertRaisesRegexp(AttributeError, ''):
@@ -95,7 +95,7 @@ class ApplicationDriverTest(tf.test.TestCase):
     #     test_driver = get_initialised_driver()
     #     graph = test_driver.create_graph(
     #         test_driver.app, test_driver.num_gpus, True)
-    #     with self.test_session(graph=graph) as sess:
+    #     with self.cached_session(graph=graph) as sess:
     #         sess.run(global_vars_init_or_restore())
     #         GRAPH_CREATED.send(test_driver.app, iter_msg=None)
     #         SESS_STARTED.send(test_driver.app, iter_msg=None)
@@ -112,7 +112,7 @@ class ApplicationDriverTest(tf.test.TestCase):
     def test_training_update(self):
         test_driver = get_initialised_driver()
         graph = test_driver.create_graph(test_driver.app, 1, True)
-        with self.test_session(graph=graph) as sess:
+        with self.cached_session(graph=graph) as sess:
             SESS_STARTED.send(test_driver.app, iter_msg=None)
 
             train_op = test_driver.app.gradient_op
@@ -131,7 +131,7 @@ class ApplicationDriverTest(tf.test.TestCase):
         test_driver = get_initialised_driver()
         graph = test_driver.create_graph(
             test_driver.app, test_driver.num_gpus, True)
-        with self.test_session(graph=graph) as sess:
+        with self.cached_session(graph=graph) as sess:
             SESS_STARTED.send(test_driver.app, iter_msg=None)
             for i in range(2):
                 sess.run(test_driver.app.gradient_op)
@@ -159,7 +159,7 @@ class ApplicationDriverTest(tf.test.TestCase):
         test_driver = get_initialised_driver()
         graph = test_driver.create_graph(
             test_driver.app, test_driver.num_gpus, True)
-        with self.test_session(graph=graph) as sess:
+        with self.cached_session(graph=graph) as sess:
             SESS_STARTED.send(test_driver.app, iter_msg=None)
             for i in range(2):
                 sess.run(test_driver.app.gradient_op)
@@ -184,7 +184,7 @@ class ApplicationDriverTest(tf.test.TestCase):
             application='tests.toy_application.ToyApplicationMultOpti')
         graph = test_driver.create_graph(
             test_driver.app, test_driver.num_gpus, True)
-        with self.test_session(graph=graph) as sess:
+        with self.cached_session(graph=graph) as sess:
             SESS_STARTED.send(test_driver.app, iter_msg=None)
             for i in range(2):
                 sess.run(test_driver.app.gradient_op)
@@ -239,7 +239,7 @@ class ApplicationDriverTest(tf.test.TestCase):
     def test_rand_initialisation(self):
         test_driver = get_initialised_driver(0, True)
         graph = test_driver.create_graph(test_driver.app, 1, True)
-        with self.test_session(graph=graph) as sess:
+        with self.cached_session(graph=graph) as sess:
             test_tensor = graph.get_tensor_by_name(
                 "G/conv_bn_selu/conv_/w:0")
             with self.assertRaisesRegexp(
@@ -259,7 +259,7 @@ class ApplicationDriverTest(tf.test.TestCase):
               -0.10836645, 0.06488426, 0.0746650, -0.188567, -0.64652514]],
             dtype=np.float32)
         graph = test_driver.create_graph(test_driver.app, 1, True)
-        with self.test_session(graph=graph) as sess:
+        with self.cached_session(graph=graph) as sess:
             test_tensor = graph.get_tensor_by_name(
                 "G/conv_bn_selu/conv_/w:0")
             with self.assertRaisesRegexp(
@@ -274,7 +274,7 @@ class ApplicationDriverTest(tf.test.TestCase):
     # def test_not_found_file_initialisation(self):
     #     test_driver = get_initialised_driver(42, False)
     #     graph = test_driver.create_graph(test_driver.app, 1, True)
-    #     with self.test_session(graph=graph) as sess:
+    #     with self.cached_session(graph=graph) as sess:
     #         with self.assertRaisesRegexp(
     #                 ValueError, ''):
     #             ModelRestorer(**vars(test_driver)).restore_model(None)
@@ -291,7 +291,7 @@ class ApplicationDriverTest(tf.test.TestCase):
               -0.43854219, 0.40412974, 0.0396539, -0.1590578, -0.53759819]],
             dtype=np.float32)
         graph = test_driver.create_graph(test_driver.app, 1, True)
-        with self.test_session(graph=graph) as sess:
+        with self.cached_session(graph=graph) as sess:
             test_tensor = graph.get_tensor_by_name(
                 "G/conv_bn_selu/conv_/w:0")
             with self.assertRaisesRegexp(
@@ -313,7 +313,7 @@ class ApplicationDriverTest(tf.test.TestCase):
               -0.43854219, 0.40412974, 0.0396539, -0.1590578, -0.53759819]],
             dtype=np.float32)
         graph = test_driver.create_graph(test_driver.app, 1, True)
-        with self.test_session(graph=graph) as sess:
+        with self.cached_session(graph=graph) as sess:
             test_tensor = graph.get_tensor_by_name(
                 "G/conv_bn_selu/conv_/w:0")
             test_negative_tensor = graph.get_tensor_by_name(

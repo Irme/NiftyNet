@@ -12,7 +12,6 @@ from niftynet.engine.sampler_uniform_v2 import UniformSampler
 from niftynet.engine.sampler_weighted_v2 import WeightedSampler
 from niftynet.engine.sampler_balanced_v2 import BalancedSampler
 from niftynet.engine.windows_aggregator_grid import GridSamplesAggregator
-from niftynet.engine.windows_aggregator_WVV_grid import WVVGridSamplesAggregator
 from niftynet.engine.windows_aggregator_resize import ResizeSamplesAggregator
 from niftynet.io.image_reader import ImageReader
 from niftynet.layer.binary_masking import BinaryMaskingLayer
@@ -378,17 +377,67 @@ class SegmentationApplication(BaseApplication):
 
         def switch_sampler(for_training):
             with tf.name_scope('train' if for_training else 'validation'):
-                self.initialise_sampler()
                 sampler = self.get_sampler()[0][0 if for_training else -1]
                 return sampler.pop_batch_op()
 
+        def mixup_switch_sampler(for_training):
+            # get first set of samples
+            d_dict = switch_sampler(for_training=for_training)
+
+            mix_fields = ('image', 'weight', 'label')
+
+            if not for_training:
+                with tf.name_scope('nomix'):
+                    # ensure label is appropriate for dense loss functions
+                    ground_truth = tf.cast(d_dict['label'], tf.int32)
+                    one_hot = tf.one_hot(tf.squeeze(ground_truth, axis=-1),
+                                         depth=self.segmentation_param.num_classes)
+                    d_dict['label'] = one_hot
+            else:
+                with tf.name_scope('mixup'):
+                    # get the mixing parameter from the Beta distribution
+                    alpha = self.segmentation_param.mixup_alpha
+                    beta = tf.distributions.Beta(alpha, alpha)  # 1, 1: uniform:
+                    rand_frac = beta.sample()
+
+                    # get another minibatch
+                    d_dict_to_mix = switch_sampler(for_training=True)
+
+                    # look at binarised labels: sort them
+                    if self.segmentation_param.mix_match:
+                        # sum up the positive labels to sort by their volumes
+                        inds1 = tf.argsort(tf.map_fn(tf.reduce_sum, tf.cast(d_dict['label'], tf.int64)))
+                        inds2 = tf.argsort(tf.map_fn(tf.reduce_sum, tf.cast(d_dict_to_mix['label'] > 0, tf.int64)))
+                        for field in [field for field in mix_fields if field in d_dict]:
+                            d_dict[field] = tf.gather(d_dict[field], indices=inds1)
+                            # note: sorted for opposite directions for d_dict_to_mix
+                            d_dict_to_mix[field] = tf.gather(d_dict_to_mix[field], indices=inds2[::-1])
+
+                    # making the labels dense and one-hot
+                    for d in (d_dict, d_dict_to_mix):
+                        ground_truth = tf.cast(d['label'], tf.int32)
+                        one_hot = tf.one_hot(tf.squeeze(ground_truth, axis=-1),
+                                             depth=self.segmentation_param.num_classes)
+                        d['label'] = one_hot
+
+                    # do the mixing for any fields that are relevant and present
+                    mixed_up = {field: d_dict[field] * rand_frac + d_dict_to_mix[field] * (1 - rand_frac) for field
+                                in mix_fields if field in d_dict}
+                    # reassign all relevant values in d_dict
+                    d_dict.update(mixed_up)
+
+            return d_dict
+
         if self.is_training:
-            if self.action_param.validation_every_n > 0:
+            if not self.segmentation_param.do_mixup:
                 data_dict = tf.cond(tf.logical_not(self.is_validation),
                                     lambda: switch_sampler(for_training=True),
                                     lambda: switch_sampler(for_training=False))
             else:
-                data_dict = switch_sampler(for_training=True)
+                # mix up the samples if not in validation phase
+                data_dict = tf.cond(tf.logical_not(self.is_validation),
+                                    lambda: mixup_switch_sampler(for_training=True),
+                                    lambda: mixup_switch_sampler(for_training=False))  # don't mix the validation
 
             image = tf.cast(data_dict['image'], tf.float32)
             net_args = {'is_training': self.is_training,
@@ -526,8 +575,10 @@ class SegmentationApplication(BaseApplication):
             self.initialise_aggregator()
 
     def interpret_output(self, batch_output):
-        return self.output_decoder.decode_batch(
-            {'window_seg': batch_output['window']}, batch_output['location'])
+        if self.is_inference:
+            return self.output_decoder.decode_batch(
+                {'window_seg': batch_output['window']}, batch_output['location'])
+        return True
 
     def initialise_evaluator(self, eval_param):
         self.eval_param = eval_param
