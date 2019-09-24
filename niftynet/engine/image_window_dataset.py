@@ -327,7 +327,9 @@ class ImageWindowDataset(Layer):
             #     seed=self._seed)
             self._enqueuer = GeneratorEnqueuer(
                 self(),
-                use_multiprocessing=True)
+                use_multiprocessing=True,
+                wait_time=0.01,
+                seed=self._seed)
             self._enqueuer.start(
                 workers=self._num_threads, max_queue_size=self.queue_length)
             window_generator = self._enqueuer.get
@@ -339,8 +341,7 @@ class ImageWindowDataset(Layer):
             output_shapes=self.tf_shapes)
 
         # dataset: slice the n-element window into n single windows
-        # dataset = dataset.flat_map(map_func=tf.data.Dataset.from_tensor_slices).repeat(-1)
-        dataset = dataset.flat_map(map_func=tf.data.Dataset.from_tensor_slices)
+        dataset = dataset.flat_map(map_func=tf.data.Dataset.from_tensor_slices).repeat(-1)
         return dataset
 
     def run_threads(self, *_args, **_kwargs):
