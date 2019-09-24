@@ -23,7 +23,8 @@ DEFAULT_MODEL_DIR = None
 DEFAULT_EVENT_HANDLERS = ('model_saver', 'model_restorer', 'sampler_threading',
                           'apply_gradients', 'output_interpreter',
                           'console_logger', 'tensorboard_logger',
-                          'performance_logger', 'whole_volume_evaluator')
+                          # 'performance_logger', 'whole_volume_evaluator')
+                          'performance_logger')
 
 DEFAULT_ITERATION_GENERATOR = 'iteration_generator'
 

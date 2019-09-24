@@ -8,6 +8,7 @@ import time
 from niftynet.engine.application_variables import CONSOLE, TF_SUMMARIES
 from niftynet.engine.signal import TRAIN, VALID, INFER
 from niftynet.utilities.util_common import look_up_operations
+import tensorflow as tf
 
 CONSOLE_FORMAT = "{} iter {}, {} ({:3f}s)"
 SUPPORTED_PHASES = {TRAIN, VALID, INFER}
@@ -225,6 +226,7 @@ class IterationMessageGenerator(object):
         self.is_training_action = is_training_action
         self.do_whole_volume_validation = do_whole_volume_validation
 
+
     def __call__(self):
         if not self.is_training_action:
             return _infer_iter_generator()
@@ -321,6 +323,8 @@ class WholeVolumeIterationMessageGenerator(IterationMessageGenerator):
         self.app = _unused['app']
         self.current_iter = max(self.initial_iter, 0)
         self.is_validating = None
+        tf.logging.info("Using WVV IterationMessageGenerator")
+
 
     def __call__(self):
         while self.current_iter <= self.final_iter:
