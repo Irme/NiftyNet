@@ -31,6 +31,8 @@ class IterationMessage(object):
 
     _should_stop = None
 
+    _origin = "IterationMessageGenerator"
+
     @property
     def current_iter(self):
         """
@@ -128,6 +130,19 @@ class IterationMessage(object):
         """
         return self._phase
 
+    @property
+    def origin(self):
+        """
+        A string indicating origin of the message
+
+        :return:
+        """
+        return self._origin
+
+    @origin.setter
+    def origin(self, value):
+        self._origin = value
+
     @phase.setter
     def phase(self, value):
         self._phase = look_up_operations(value, SUPPORTED_PHASES)
@@ -218,6 +233,7 @@ class IterationMessageGenerator(object):
                  validation_max_iter=0,
                  is_training_action=True,
                  do_whole_volume_validation=False,
+                 name = "IterationMessageGenerator",
                  **_unused):
         self.initial_iter = max(initial_iter, -1)
         self.final_iter = max(final_iter, self.initial_iter)
@@ -225,7 +241,7 @@ class IterationMessageGenerator(object):
         self.validation_max_iter = validation_max_iter
         self.is_training_action = is_training_action
         self.do_whole_volume_validation = do_whole_volume_validation
-
+        self.name = name
 
     def __call__(self):
         if not self.is_training_action:
@@ -324,11 +340,12 @@ class WholeVolumeIterationMessageGenerator(IterationMessageGenerator):
         self.current_iter = max(self.initial_iter, 0)
         self.is_validating = None
         tf.logging.info("Using WVV IterationMessageGenerator")
-
+        self.name = "WholeVolumeIterationMessageGenerator"
 
     def __call__(self):
         while self.current_iter <= self.final_iter:
             iter_msg = IterationMessage()
+            iter_msg.origin(self.name)
             finished_validating = self.app.sampler[0][1].no_more_samples
             if finished_validating and self.is_validating:
                 self.app.sampler[0][1].no_more_samples = False
