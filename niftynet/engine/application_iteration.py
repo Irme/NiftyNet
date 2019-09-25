@@ -345,7 +345,6 @@ class WholeVolumeIterationMessageGenerator(IterationMessageGenerator):
     def __call__(self):
         while self.current_iter <= self.final_iter:
             iter_msg = IterationMessage()
-            iter_msg.origin(self.name)
             finished_validating = self.app.sampler[0][1].no_more_samples
             if finished_validating and self.is_validating:
                 self.app.sampler[0][1].no_more_samples = False

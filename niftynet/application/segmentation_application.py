@@ -215,19 +215,19 @@ class SegmentationApplication(BaseApplication):
                     batch_size=self.net_param.batch_size,
                     spatial_window_size=self.action_param.spatial_window_size,
                     window_border=self.action_param.border,
-                    do_whole_volume_validation=True,
+                    # do_whole_volume_validation=True,
                     smaller_final_batch_mode='pad',
                     queue_length=self.net_param.queue_length
                 )
             ]]
         else:
             self.sampler = [[UniformSampler(
-                reader=self.readers[0],
+                reader=reader,
                 window_sizes=self.data_param,
                 batch_size=self.net_param.batch_size,
                 windows_per_image=self.action_param.sample_per_volume,
-                queue_length=self.net_param.queue_length)
-            ]]
+                queue_length=self.net_param.queue_length) for reader in
+                self.readers]]
 
     def initialise_weighted_sampler(self):
         if self.action_param.do_whole_volume_validation:
@@ -243,19 +243,19 @@ class SegmentationApplication(BaseApplication):
                     batch_size=self.net_param.batch_size,
                     spatial_window_size=self.action_param.spatial_window_size,
                     window_border=self.action_param.border,
-                    do_whole_volume_validation=True,
+                    # do_whole_volume_validation=True,
                     smaller_final_batch_mode=self.net_param.smaller_final_batch_mode,
                     queue_length=self.net_param.queue_length
                 )
             ]]
         else:
             self.sampler = [[WeightedSampler(
-                reader=self.readers[0],
+                reader=reader,
                 window_sizes=self.data_param,
                 batch_size=self.net_param.batch_size,
                 windows_per_image=self.action_param.sample_per_volume,
-                queue_length=self.net_param.queue_length)
-            ]]
+                queue_length=self.net_param.queue_length) for reader in
+                self.readers]]
 
     def initialise_resize_sampler(self):
         if self.action_param.do_whole_volume_validation:
@@ -273,21 +273,20 @@ class SegmentationApplication(BaseApplication):
                     batch_size=self.net_param.batch_size,
                     spatial_window_size=self.action_param.spatial_window_size,
                     window_border=self.action_param.border,
-                    do_whole_volume_validation=True,
+                    # do_whole_volume_validation=True,
                     smaller_final_batch_mode=self.net_param.smaller_final_batch_mode,
                     queue_length=self.net_param.queue_length
                 )
             ]]
         else:
             self.sampler = [[ResizeSampler(
-                reader=self.readers[0],
+                reader=reader,
                 window_sizes=self.data_param,
                 batch_size=self.net_param.batch_size,
                 shuffle=self.is_training,
                 smaller_final_batch_mode=self.net_param.smaller_final_batch_mode,
-                queue_length=self.net_param.queue_length
-            )
-            ]]
+                queue_length=self.net_param.queue_length) for reader in
+                self.readers]]
 
     def initialise_grid_sampler(self):
         self.sampler = [[GridSampler(

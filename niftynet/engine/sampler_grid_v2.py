@@ -65,7 +65,7 @@ class GridSampler(ImageWindowDataset):
                 self.no_samples_count += 1
                 tf.logging.info('no_samples_count: {}'.format(self.no_samples_count))
                 if self.do_whole_volume_validation:
-                    if self.no_samples_count <= 7:
+                    if self.no_samples_count <= 2:
                         print('continue ing from samples count for loop')
                         continue
                     else:
