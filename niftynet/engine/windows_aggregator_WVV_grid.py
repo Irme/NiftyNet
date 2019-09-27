@@ -42,6 +42,10 @@ class WVVGridSamplesAggregator(ImageWindowsAggregator):
         self.postfix = postfix
         self.fill_constant = fill_constant
         self.sampler = sampler
+        self.n_id_changes = 0
+        self.end_val = False
+        self.num_images_saved = 0
+        tf.logging.info("Initialised WVVGridSamplesAggregator using {}.".format(sampler.name))
 
     def decode_batch(self, window, location):
         '''
@@ -56,10 +60,8 @@ class WVVGridSamplesAggregator(ImageWindowsAggregator):
         :param location: location of the input
         :return:
         '''
-        print(self.sampler.output_dict['image'].shape)
-        output_dict = self.sampler.output_dict
         n_samples = location.shape[0]
-        n_expected = self.sampler._enumerate_step_points()
+
         location_init = np.copy(location)
         init_ones = None
         for i in window:
@@ -69,20 +71,19 @@ class WVVGridSamplesAggregator(ImageWindowsAggregator):
                 window[i], _ = self.crop_batch(window[i], location_init,
                                                self.window_border)
                 location_init = np.copy(location)
-                print(i, np.sum(window[i]), np.max(window[i]))
+                # print(i, np.sum(window[i]), np.max(window[i]))
         _, location = self.crop_batch(init_ones, location_init,
                                       self.window_border)
         for batch_id in range(n_samples):
             image_id, x_start, y_start, z_start, x_end, y_end, z_end = \
                 location[batch_id, :]
             if image_id != self.image_id:
+                print("Image id changed, saving image.")
                 # image name changed:
                 #    save current image and create an empty image
                 self._save_current_image()
+                self.n_id_changes += 1
                 self._save_current_csv()
-                if self._is_stopping_signal(location[batch_id]):
-                    print('Has finished validating')
-                    return False
                 self.image_out = {}
                 self.csv_out = {}
                 for i in window:
@@ -92,7 +93,7 @@ class WVVGridSamplesAggregator(ImageWindowsAggregator):
                             image_id=image_id,
                             n_channels=window[i].shape[-1],
                             dtype=window[i].dtype)
-                        print("for output shape is ", self.image_out[i].shape)
+                        # print("for output shape is ", self.image_out[i].shape)
                     else:
                         if not isinstance(window[i], (list, tuple, np.ndarray)):
                             self.csv_out[i] = self._initialise_empty_csv(
@@ -115,6 +116,16 @@ class WVVGridSamplesAggregator(ImageWindowsAggregator):
                             self.csv_out[i] = self._initialise_empty_csv(
                                 n_channel=window[i][0].shape[-1] + location_init
                                 [0, :].shape[-1])
+
+                    # print("Current i:",i)
+
+            if self.sampler.end_val:
+                print('Validation iteration finished.')
+                self._save_current_image()
+                self._save_current_csv()
+                self.image_out = {}
+                self.csv_out = {}
+                return False
             for i in window:
                 if 'window' in i:
                     self.image_out[i][
@@ -188,31 +199,37 @@ class WVVGridSamplesAggregator(ImageWindowsAggregator):
         :return:
         '''
         if self.input_image is None:
+            tf.logging.warning("There was nothing to save")
             return
-        for i in self.image_out:
-            print(np.sum(self.image_out[i]), " is sum of image out %s before"
-                  % i)
-            print("for output shape is now ", self.image_out[i].shape)
-        for layer in reversed(self.reader.preprocessors):
-            if isinstance(layer, PadLayer):
-                for i in self.image_out:
-                    self.image_out[i], _ = layer.inverse_op(self.image_out[i])
-            if isinstance(layer, DiscreteLabelNormalisationLayer):
-                for i in self.image_out:
-                    self.image_out[i], _ = layer.inverse_op(self.image_out[i])
-        subject_name = self.reader.get_subject_id(self.image_id)
-        for i in self.image_out:
-            print(np.sum(self.image_out[i]), " is sum of image out %s after"
-                  % i)
-        for i in self.image_out:
-            filename = "{}_{}_{}.nii.gz".format(i, subject_name, self.postfix)
-            source_image_obj = self.input_image[self.name]
-            misc_io.save_data_array(self.output_path,
-                                    filename,
-                                    self.image_out[i],
-                                    source_image_obj,
-                                    self.output_interp_order)
-            self.log_inferred(subject_name, filename)
+        if self.num_images_saved < len(self.reader._file_list):
+
+            # for i in self.image_out:
+                # print(np.sum(self.image_out[i]), " is sum of image out %s before"
+                #       % i)
+                # print("for output shape is now ", self.image_out[i].shape)
+            for layer in reversed(self.reader.preprocessors):
+                if isinstance(layer, PadLayer):
+                    for i in self.image_out:
+                        self.image_out[i], _ = layer.inverse_op(self.image_out[i])
+                if isinstance(layer, DiscreteLabelNormalisationLayer):
+                    for i in self.image_out:
+                        self.image_out[i], _ = layer.inverse_op(self.image_out[i])
+            subject_name = self.reader.get_subject_id(self.image_id)
+            # for i in self.image_out:
+            #     print(np.sum(self.image_out[i]), " is sum of image out %s after"
+            #           % i)
+            for i in self.image_out:
+                filename = "{}_{}_{}.nii.gz".format(i, subject_name, self.postfix)
+                source_image_obj = self.input_image[self.name]
+                misc_io.save_data_array(self.output_path,
+                                        filename,
+                                        self.image_out[i],
+                                        source_image_obj,
+                                        self.output_interp_order)
+                self.log_inferred(subject_name, filename)
+            self.num_images_saved +=1
+        else:
+            tf.logging.info('Tried saving extra image.')
         return
 
     def _save_current_csv(self):

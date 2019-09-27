@@ -240,6 +240,8 @@ SUPPORTED_EVENT_HANDLERS = {
         'niftynet.engine.handler_performance.PerformanceLogger',
     'early_stopper':
         'niftynet.engine.handler_early_stopping.EarlyStopper',
+    'monitor_WVV':
+        'niftynet.engine.handler_wvv.WVV_Monitor',
 }
 
 SUPPORTED_ITERATION_GENERATORS = {

@@ -51,6 +51,15 @@ ITER_FINISHED = NIFTYNET.signal(
     'iteration_finished',
     doc='emitted at the end of each iteration, after ``tf.session.run(...)``.')
 
+VALIDATION_STARTED = NIFTYNET.signal(
+    'validation started',
+    doc='emitted at the start of a validation session'
+)
+
+VALIDATION_FINISHED = NIFTYNET.signal(
+    'validation started',
+    doc='emitted at when validation has finished'
+)
 
 # EPOCH_STARTED = NIFTYNET.signal(
 #     'epoch_started',

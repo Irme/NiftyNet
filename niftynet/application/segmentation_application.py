@@ -203,20 +203,22 @@ class SegmentationApplication(BaseApplication):
 
     def initialise_uniform_sampler(self):
         if self.action_param.do_whole_volume_validation:
-            self.sampler = [[UniformSampler(
-                reader=self.readers[0],
-                window_sizes=self.data_param,
-                batch_size=self.net_param.batch_size,
-                windows_per_image=self.action_param.sample_per_volume,
-                queue_length=self.net_param.queue_length),
+            self.sampler = [[
+                UniformSampler(
+                    reader=self.readers[0],
+                    window_sizes=self.data_param,
+                    batch_size=self.net_param.batch_size,
+                    windows_per_image=self.action_param.sample_per_volume,
+                    queue_length=self.net_param.queue_length
+                ),
                 GridSampler(
                     reader=self.readers[1],
                     window_sizes=self.data_param,
                     batch_size=self.net_param.batch_size,
                     spatial_window_size=self.action_param.spatial_window_size,
                     window_border=self.action_param.border,
-                    # do_whole_volume_validation=True,
-                    smaller_final_batch_mode='pad',
+                    do_whole_volume_validation=True,
+                    smaller_final_batch_mode='dynamic',
                     queue_length=self.net_param.queue_length
                 )
             ]]
@@ -231,19 +233,21 @@ class SegmentationApplication(BaseApplication):
 
     def initialise_weighted_sampler(self):
         if self.action_param.do_whole_volume_validation:
-            self.sampler = [[WeightedSampler(
-                reader=self.readers[0],
-                window_sizes=self.data_param,
-                batch_size=self.net_param.batch_size,
-                windows_per_image=self.action_param.sample_per_volume,
-                queue_length=self.net_param.queue_length),
+            self.sampler = [[
+                WeightedSampler(
+                    reader=self.readers[0],
+                    window_sizes=self.data_param,
+                    batch_size=self.net_param.batch_size,
+                    windows_per_image=self.action_param.sample_per_volume,
+                    queue_length=self.net_param.queue_length
+                ),
                 GridSampler(
                     reader=self.readers[1],
                     window_sizes=self.data_param,
                     batch_size=self.net_param.batch_size,
                     spatial_window_size=self.action_param.spatial_window_size,
                     window_border=self.action_param.border,
-                    # do_whole_volume_validation=True,
+                    do_whole_volume_validation=True,
                     smaller_final_batch_mode=self.net_param.smaller_final_batch_mode,
                     queue_length=self.net_param.queue_length
                 )
@@ -273,7 +277,7 @@ class SegmentationApplication(BaseApplication):
                     batch_size=self.net_param.batch_size,
                     spatial_window_size=self.action_param.spatial_window_size,
                     window_border=self.action_param.border,
-                    # do_whole_volume_validation=True,
+                    do_whole_volume_validation=True,
                     smaller_final_batch_mode=self.net_param.smaller_final_batch_mode,
                     queue_length=self.net_param.queue_length
                 )
@@ -325,9 +329,7 @@ class SegmentationApplication(BaseApplication):
             output_path=self.action_param.save_seg_dir,
             window_border=self.action_param.border,
             interp_order=self.action_param.output_interp_order,
-            postfix=self.action_param.output_postfix if not
-            self.action_param.do_whole_volume_validation else
-            '_wvv_out',
+            postfix=self.action_param.output_postfix,
             fill_constant=self.action_param.fill_constant)
 
     def initialise_resize_aggregator(self):
@@ -341,6 +343,7 @@ class SegmentationApplication(BaseApplication):
     def initialise_sampler(self):
         if self.is_training:
             self.SUPPORTED_SAMPLING[self.net_param.window_sampling][0]()
+            # self.sampler[0][1].set_num_threads(1) #TODO
         elif self.is_inference:
             self.SUPPORTED_SAMPLING[self.net_param.window_sampling][1]()
 
@@ -528,6 +531,7 @@ class SegmentationApplication(BaseApplication):
                 var=data_dict['image_location'], name='location',
                 average_over_devices=False, collection=NETWORK_OUTPUT)
             if self.action_param.do_whole_volume_validation:
+                # self.initialise_grid_aggregator()
                 self.initialise_wvv_grid_aggregator()
 
             # outputs_collector.add_to_collection(
@@ -575,7 +579,7 @@ class SegmentationApplication(BaseApplication):
             self.initialise_aggregator()
 
     def interpret_output(self, batch_output):
-        if self.is_inference:
+        if self.is_inference or (self.is_whole_volume_validating and self.action_param.do_whole_volume_validation):
             return self.output_decoder.decode_batch(
                 {'window_seg': batch_output['window']}, batch_output['location'])
         return True

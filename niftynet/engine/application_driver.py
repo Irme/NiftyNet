@@ -98,6 +98,7 @@ class ApplicationDriver(object):
         # hardware-related parameters
         self.num_threads = max(system_param.num_threads, 1) \
             if self.is_training_action else 1
+        tf.logging.info("Initialised {} threads.".format(self.num_threads))
         self.num_gpus = system_param.num_gpus \
             if self.is_training_action else min(system_param.num_gpus, 1)
         set_cuda_device(system_param.cuda_devices)

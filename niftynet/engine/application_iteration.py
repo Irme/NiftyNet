@@ -345,17 +345,20 @@ class WholeVolumeIterationMessageGenerator(IterationMessageGenerator):
     def __call__(self):
         while self.current_iter <= self.final_iter:
             iter_msg = IterationMessage()
-            finished_validating = self.app.sampler[0][1].no_more_samples
-            if finished_validating and self.is_validating:
-                self.app.sampler[0][1].no_more_samples = False
+
+            if self.app.output_decoder.end_val and self.is_validating:
+                self.app.output_decoder.end_val = False
                 self.is_validating = False
-            if self.current_iter > 0 and self.validation_every_n > 0 \
-                    and self.current_iter % self.validation_every_n == 0 \
-                and not finished_validating:
+
+            elif self.current_iter > 0 and self.validation_every_n > 0 \
+                    and self.current_iter % self.validation_every_n == 0:
+
                 iter_msg.current_iter, iter_msg.phase = self.current_iter, VALID
                 self.is_validating = True
                 yield iter_msg
+
             if not self.is_validating:
                 iter_msg.current_iter, iter_msg.phase = self.current_iter, TRAIN
                 self.current_iter += 1
+
             yield iter_msg

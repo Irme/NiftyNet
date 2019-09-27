@@ -125,6 +125,8 @@ class ImageWindowDataset(Layer):
         Set number windows to generate in parallel.
         """
         self._num_threads = int(num_threads)
+        print(self)
+        print('I AM BEING SET TO ', self._num_threads)
 
     def layer_op(self, idx=None):
         """
